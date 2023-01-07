@@ -1,34 +1,22 @@
 #!/usr/bin/env python3
 # _*_ coding: utf-8 _*_
 
-import sys
 import json
-import datetime
+import os.path
+import argparse
 
 
-def add(list_man):
-    # Запросить данные .
-    name = input("Имя:  ")
-    number = input("Номер телефона ")
-    date_ = input("Дата рождения: ")
-    date_ = datetime.datetime.strptime(date_, "%Y-%m-%d").date()
-
-    # Создать словарь.
-    man = {
-        "name": name,
-        "number": number,
-        "date": date_,
-    }
-
-    # Добавить словарь в список.
-    list_man.append(man)
-    # Отсортировать список.
-    if len(list_man) > 1:
-        list_man.sort(key=lambda item: item.get("date", ""))
+def add_mans(list_man, name, number, date_):
+    # Добавление данных
+    list_man.append({"name": name, "number": number, "date": date_})
     return list_man
 
 
 def list_d(list_man):
+    """
+    Отображение списка людей
+    """
+    # Проверить, что список не пуст
     if list_man:
         # Заголовок таблицы.
         line = "+-{}-+-{}-+-{}-+-{}-+".format("-" * 4, "-" * 30, "-" * 20, "-" * 20)
@@ -44,7 +32,7 @@ def list_d(list_man):
         for idx, man in enumerate(list_man, 1):
             print(
                 "| {:>4} | {:<30} | {:<20} | {:<20}  |".format(
-                    idx, man.get("name", ""), man.get("number", ""), man.get("date", "")
+                    idx, man.get("name", ""), man.get("number", 0), man.get("date", 0)
                 )
             )
 
@@ -53,67 +41,92 @@ def list_d(list_man):
         print("Список работников пуст: ")
 
 
-def select(command_d, mans_list):
-    parts_ = command_d.split(" ", maxsplit=1)
-    sel = parts_[1]
+def select_mans(mans_list, numb):
+    """
+    Отбор пользователей с заданным номером телеофна
+    """
     count = 0
-    for man in mans_list:
-        if man.get("number") == sel:
-            count += 1
-            print("{:>4}: {}".format(count, man.get("name", "")))
-            print("Номер телефона:", man.get("number", ""))
-            print("Дата рождения:", man.get("date", ""))
-
+    if mans_list:
+        for man in mans_list:
+            if man.get("number") == numb:
+                count += 1
+                print("{:>4}: {}".format(count, man.get("name", "")))
+                print("Номер телефона:", man.get("number", ""))
+                print("Дата рождения:", man.get("date", ""))
+    else:
+        print("Список пользователей пуст.")
     # Если счетчик равен 0, то человек не найден.
     if count == 0:
         print("Человек не найден.")
 
 
 def save_workers(file_name_1, staff):
-
+    """
+    Сохранить всех пользователей в файл JSON.
+    """
     with open(file_name_1, "w", encoding="utf-8") as fout:
         json.dump(staff, fout, ensure_ascii=False, indent=4, default=str)
 
 
 def load_workers(file_name_2):
+    """
+    Загрузить всех работников из файла JSON.
+    """
     with open(file_name_2, "r", encoding="utf-8") as fin:
         return json.load(fin)
 
 
-def help_d():
-    # Вывести справку о работе с программой.
-    print("Список команд:\n")
-    print("add - добавить человека;")
-    print("list - вывести список людей;")
-    print("select <товар> - информация о человеке;")
-    print("save <имя файла> - сохранение данных в файл")
-    print("losd <имя файла> - загрузка даннных из файла")
-    print("help - отобразить справку;")
-    print("exit - завершить работу с программой.")
+def main(command_line=None):
+    # Создаем родительский парсер для определения имени файла
+    file_parser = argparse.ArgumentParser(add_help=False)
+    file_parser.add_argument("filename", action="store", help="The date file name")
+    # Основной парсер командной строки
+    parser = argparse.ArgumentParser("workers")
+    parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
+
+    subparser = parser.add_subparsers(dest="command")
+
+    # Субпарсер для добавления пользователей
+    add = subparser.add_parser("add", parents=[file_parser], help="Add a new worker")
+    add.add_argument(
+        "-n", "--name", action="store", required=True, help="The worker name"
+    )
+    add.add_argument(
+        "-N", "--number", action="store", type=str, help="The workers phone number"
+    )
+    add.add_argument(
+        "-y", "--year", action="store", type=int, required=True, help="Man's birthdate"
+    )
+    # Субпарсер для отображения всех пользователей
+    _ = subparser.add_parser(
+        "display", parents=[file_parser], help="Display information about users"
+    )
+    # Субпарсер для выбора пользователей
+    select = subparser.add_parser("select", parents=[file_parser], help="Select users")
+    select.add_argument(
+        "-p", "--phone", action="store", type=str, help="The required period"
+    )
+    # Разбор аргументов командной строки
+    args = parser.parse_args(command_line)
+    # Загрузить всех пользователей из файла, если он сущестсвует
+    is_dirty = False
+    if os.path.exists(args.filename):
+        mans = load_workers(args.filename)
+    else:
+        mans = []
+    # Добавление пользователя
+    if args.command == "add":
+        mans = add_mans(mans, args.name, args.number, args.year)
+        is_dirty = True
+    # Отображение всех пользователей
+    elif args.command == "display":
+        list_d(mans)
+    # Отбор требуемых пользователей
+    elif args.command == "select":
+        select_mans(mans, args.phone)
+    if is_dirty:
+        save_workers(args.filename, mans)
 
 
 if __name__ == "__main__":
-    manlist = []
-    while True:
-        # Запросить команду
-        command = input(">>> ").lower()
-        if command == "exit":
-            break
-        elif command == "add":
-            manlist = add(manlist)
-        elif command == "list":
-            list_d(manlist)
-        elif command.startswith("select "):
-            select(command, manlist)
-        elif command.startswith("save "):
-            parts = command.split(maxsplit=1)
-            file_name = parts[1]
-            save_workers(file_name, manlist)
-        elif command.startswith("load "):
-            parts = command.split(maxsplit=1)
-            file_name = parts[1]
-            manlist = load_workers(file_name)
-        elif command == "help":
-            help_d()
-        else:
-            print("неизвестная команда {command}", file=sys.stderr)
+    main()
